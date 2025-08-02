@@ -1,0 +1,192 @@
+esphome:
+  name: remote-esphome
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  domain: .lan
+
+mqtt:
+  broker: ops.lan
+  port: 1883
+  discovery: true
+  discovery_retain: true
+  birth_message:
+    topic: remote-esphome/status
+    payload: online
+  will_message:
+    topic: remote-esphome/status
+    payload: offline
+
+light:
+  - platform: binary
+    name: "WiFi Status LED"
+    id: wifi_led
+    output: led_output
+
+output:
+  - platform: gpio
+    pin: GPIO2  # Change this to your LED pin
+    id: led_output
+
+# WiFi connection status automation.
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - light.turn_on: wifi_led
+          else:
+            - light.turn_off: wifi_led
+ 
+remote_transmitter:
+  pin: GPIO13
+  carrier_duty_percent: 100%
+  id: fan_remote
+
+script:
+  - id: transmit_house_code
+    parameters:
+      house: int
+      code: int
+    then:
+      - lambda: |-
+          // Use uint32_t to ensure we have enough bits
+          uint32_t combined = ((uint32_t)house << 8) | (uint32_t)code;
+          
+          // Convert to 24-bit binary string
+          std::string binary_str = "";
+          for (int i = 23; i >= 0; i--) {
+            if (combined & (1UL << i)) {
+              binary_str += "1";
+            } else {
+              binary_str += "0";
+            }
+          }
+          
+          ESP_LOGD("house_code", "House: %d, Code: %d -> Combined: %lu -> Binary: %s", 
+                   house, code, (unsigned long)combined, binary_str.c_str());
+          
+          id(binary_code) = binary_str;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda "return id(binary_code);"
+          protocol:
+            pulse_length: 400
+            sync: [1, 31]
+            zero: [1, 3]
+            one: [3, 1]
+          repeat:
+            times: 5
+            wait_time: 0s
+
+globals:
+  - id: binary_code
+    type: std::string
+    initial_value: '""'
+
+button:
+  - platform: template
+    name: "ON"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 4
+  - platform: template
+    name: "OFF"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 1
+  - platform: template
+    name: "ON BLUE"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 6
+  - platform: template
+    name: "FAN 1"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 10
+  - platform: template
+    name: "FAN 2"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 7
+  - platform: template
+    name: "FAN 3"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 5
+  - platform: template
+    name: "FAN 4"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 9
+  - platform: template
+    name: "FAN 4"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 9
+  - platform: template
+    name: "FAN 5"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 12
+  - platform: template
+    name: "FAN 6"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 11
+  - platform: template
+    name: "FAN OFF"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 8
+  - platform: template
+    name: "FAN 2 HOURS"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 18
+  - platform: template
+    name: "FAN 30 MINUTES"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 13785
+          code: 16
