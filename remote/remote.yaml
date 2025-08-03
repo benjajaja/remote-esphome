@@ -35,6 +35,7 @@ light:
     name: "WiFi Status LED"
     id: wifi_led
     output: led_output
+    internal: true
 
 output:
   - platform: gpio
@@ -99,6 +100,7 @@ globals:
     initial_value: '""'
 
 button:
+  # Bedroom 1
   - platform: template
     name: "ON"
     on_press:
@@ -190,3 +192,18 @@ button:
           id: transmit_house_code
           house: 13785
           code: 16
+  # Bedroom 2
+  - platform: template
+    name: "ON 2"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 63258
+          code: 4
+  - platform: template
+    name: "OFF 2"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 63258
+          code: 1

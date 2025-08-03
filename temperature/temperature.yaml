@@ -1,0 +1,90 @@
+esphome:
+  name: temperature-esphome
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  domain: .lan
+
+mqtt:
+  broker: ops.lan
+  port: 1883
+  discovery: true
+  discovery_retain: true
+  birth_message:
+    topic: remote-esphome/status
+    payload: online
+  will_message:
+    topic: remote-esphome/status
+    payload: offline
+
+light:
+  - platform: binary
+    name: "WiFi Status LED"
+    id: wifi_led
+    output: led_output
+
+output:
+  - platform: gpio
+    pin: GPIO2  # Change this to your LED pin
+    id: led_output
+
+# WiFi connection status automation.
+# interval:
+  # - interval: 5s
+    # then:
+      # - if:
+          # condition:
+            # wifi.connected:
+          # then:
+            # - light.turn_on: wifi_led
+          # else:
+            # - light.turn_off: wifi_led
+ 
+one_wire:
+  - platform: gpio
+    pin: GPIO18
+
+sensor:
+  - platform: dallas_temp
+    name: Temperature
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+    state_class: "measurement"
+    accuracy_decimals: 1
+    expire_after: 30s
+
+binary_sensor:
+  - platform: gpio
+    pin: 
+      number: GPIO25
+      mode:
+        input: true
+        pullup: true
+      inverted: true  # Motion occurs when signal goes LOW
+    name: "Motion Detected"
+    id: motion_sensor
+    device_class: motion
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 3s
+    on_press:
+      then:
+        - logger.log: "Motion detected!"
+    on_release:
+      then:
+        - logger.log: "Motion cleared"
+
