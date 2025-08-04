@@ -35,6 +35,7 @@ light:
     name: "WiFi Status LED"
     id: wifi_led
     output: led_output
+    internal: true
 
 output:
   - platform: gpio
@@ -42,16 +43,16 @@ output:
     id: led_output
 
 # WiFi connection status automation.
-# interval:
-  # - interval: 5s
-    # then:
-      # - if:
-          # condition:
-            # wifi.connected:
-          # then:
-            # - light.turn_on: wifi_led
-          # else:
-            # - light.turn_off: wifi_led
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - light.turn_off: wifi_led
+          else:
+            - light.turn_on: wifi_led
  
 one_wire:
   - platform: gpio
@@ -87,4 +88,39 @@ binary_sensor:
     on_release:
       then:
         - logger.log: "Motion cleared"
+
+
+remote_transmitter:
+  pin: GPIO13
+  carrier_duty_percent: 100%
+  id: remote_transmitter_1
+
+button:
+  - platform: template
+    name: "Living Room Ceiling Fan Light Toggle"
+    on_press:
+      # First: 32-bit code d1eff8c7
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '00101110000100000000011100111000'
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Second: 33-bit code 68f7fc638 (fine-tune to get 638 instead of 640)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Adjusted to get 638
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Third: 33-bit code 68f7fc638 (repeat)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Same as above
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
 
