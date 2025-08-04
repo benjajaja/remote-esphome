@@ -89,38 +89,97 @@ binary_sensor:
       then:
         - logger.log: "Motion cleared"
 
-
 remote_transmitter:
-  pin: GPIO13
+  pin: GPIO4  # Change to your actual transmitter pin
   carrier_duty_percent: 100%
-  id: remote_transmitter_1
+
+globals:
+  - id: binary_codes
+    type: std::vector<std::string>
+    restore_value: no
+
+script:
+  - id: codes_to_binary
+    parameters:
+      codes: string
+    then:
+      - lambda: |-
+          // Clear previous codes
+          id(binary_codes).clear();
+          
+          // Parse comma-separated string
+          std::string codes_str = codes;
+          std::string delimiter = ",";
+          size_t pos = 0;
+          std::string token;
+          
+          // Add trailing comma to catch last element
+          codes_str += ",";
+          
+          while ((pos = codes_str.find(delimiter)) != std::string::npos) {
+            token = codes_str.substr(0, pos);
+            
+            // Trim whitespace
+            token.erase(0, token.find_first_not_of(" \t"));
+            token.erase(token.find_last_not_of(" \t") + 1);
+            
+            if (!token.empty() && token[0] == '{') {
+              // Parse format: {bits}code
+              size_t close_brace = token.find('}');
+              if (close_brace != std::string::npos) {
+                std::string bits_str = token.substr(1, close_brace - 1);
+                int bit_count = std::stoi(bits_str);
+                std::string code_str = token.substr(close_brace + 1);
+                
+                // Parse hex code (assume hex without 0x prefix)  
+                uint64_t parsed_code = std::stoull(code_str, nullptr, 16);
+                
+                // Find how many bits this code naturally has
+                int natural_bits = 64 - __builtin_clzll(parsed_code);
+                
+                uint64_t code;
+                if (natural_bits > bit_count) {
+                  // Shift right to align properly
+                  int shift = natural_bits - bit_count + 1;
+                  code = parsed_code >> shift;
+                  // Mask to ensure we only use the specified bit count
+                  uint64_t mask = (1ULL << bit_count) - 1;
+                  code = code & mask;
+                } else {
+                  code = parsed_code;
+                }
+                
+                // Convert to binary string and apply inverse logic
+                std::string binary = "";
+                for (int i = bit_count - 1; i >= 0; i--) {
+                  bool bit = (code >> i) & 1;
+                  binary += bit ? "0" : "1";  // Apply inverse logic
+                }
+                
+                // Store in global vector
+                id(binary_codes).push_back(binary);
+              }
+            }
+            
+            codes_str.erase(0, pos + delimiter.length());
+          }
+      - repeat:
+          count: !lambda "return id(binary_codes).size();"
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda "return id(binary_codes)[iteration];"
+                protocol:
+                  pulse_length: 104
+                  sync: [1, 116]
+                  zero: [4, 12]
+                  one: [12, 4]
 
 button:
   - platform: template
-    name: "Living Room Ceiling Fan Light Toggle"
+    name: "RF433 Remote Button"  
     on_press:
-      # First: 32-bit code d1eff8c7
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '00101110000100000000011100111000'
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
-      # Second: 33-bit code 68f7fc638 (fine-tune to get 638 instead of 640)
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '100101110000100000000011100111000'  # Adjusted to get 638
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
-      # Third: 33-bit code 68f7fc638 (repeat)
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '100101110000100000000011100111000'  # Same as above
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
+      - script.execute:
+          id: codes_to_binary
+          codes: '{32}d1eff8c7, {33}68f7fc638, {33}68f7fc638'
+          # 00101110000100000000011100111000, 100101110000100000000011100111000, 100101110000100000000011100111000
 
