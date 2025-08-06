@@ -1,5 +1,8 @@
+substitutions:
+  device_name: remote
+
 esphome:
-  name: remote-esphome
+  name: ${device_name}-esphome
 
 esp32:
   board: esp32doit-devkit-v1
@@ -23,11 +26,12 @@ mqtt:
   port: 1883
   discovery: true
   discovery_retain: true
+  discovery_unique_id_generator: mac
   birth_message:
-    topic: remote-esphome/status
+    topic: ${device_name}-esphome/status
     payload: online
   will_message:
-    topic: remote-esphome/status
+    topic: ${device_name}-esphome/status
     payload: offline
 
 light:
@@ -57,7 +61,6 @@ interval:
 remote_transmitter:
   pin: GPIO13
   carrier_duty_percent: 100%
-  id: fan_remote
 
 script:
   - id: transmit_house_code
@@ -93,117 +96,211 @@ script:
           repeat:
             times: 5
             wait_time: 0s
+  - id: codes_to_binary
+    parameters:
+      codes: string
+    then:
+      - lambda: |-
+          // Clear previous codes
+          id(binary_codes).clear();
+          
+          // Parse comma-separated string
+          std::string codes_str = codes;
+          std::string delimiter = ",";
+          size_t pos = 0;
+          std::string token;
+          
+          // Add trailing comma to catch last element
+          codes_str += ",";
+          
+          while ((pos = codes_str.find(delimiter)) != std::string::npos) {
+            token = codes_str.substr(0, pos);
+            
+            // Trim whitespace
+            token.erase(0, token.find_first_not_of(" \t"));
+            token.erase(token.find_last_not_of(" \t") + 1);
+            
+            if (!token.empty() && token[0] == '{') {
+              // Parse format: {bits}code
+              size_t close_brace = token.find('}');
+              if (close_brace != std::string::npos) {
+                std::string bits_str = token.substr(1, close_brace - 1);
+                int bit_count = std::stoi(bits_str);
+                std::string code_str = token.substr(close_brace + 1);
+                
+                // Parse hex code (assume hex without 0x prefix)  
+                uint64_t parsed_code = std::stoull(code_str, nullptr, 16);
+                
+                // Find how many bits this code naturally has
+                int natural_bits = 64 - __builtin_clzll(parsed_code);
+                
+                uint64_t code;
+                if (natural_bits > bit_count) {
+                  // Shift right to align properly
+                  int shift = natural_bits - bit_count + 1;
+                  code = parsed_code >> shift;
+                  // Mask to ensure we only use the specified bit count
+                  uint64_t mask = (1ULL << bit_count) - 1;
+                  code = code & mask;
+                } else {
+                  code = parsed_code;
+                }
+                
+                // Convert to binary string and apply inverse logic
+                std::string binary = "";
+                for (int i = bit_count - 1; i >= 0; i--) {
+                  bool bit = (code >> i) & 1;
+                  binary += bit ? "0" : "1";  // Apply inverse logic
+                }
+                
+                // Store in global vector
+                id(binary_codes).push_back(binary);
 
+                // Log for debugging
+                ESP_LOGD("transmit_codes", "Code: %s, Bits: %d, Parsed: 0x%llx, Binary: %s", 
+                         code_str.c_str(), bit_count, code, binary.c_str());
+              }
+            }
+            
+            codes_str.erase(0, pos + delimiter.length());
+          }
+      - repeat:
+          count: !lambda "return id(binary_codes).size();"
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda "return id(binary_codes)[iteration];"
+                protocol:
+                  pulse_length: 104
+                  sync: [1, 116]
+                  zero: [4, 12]
+                  one: [12, 4]
 globals:
   - id: binary_code
     type: std::string
     initial_value: '""'
+  - id: binary_codes
+    type: std::vector<std::string>
+    restore_value: no
 
 button:
   # Bedroom 1
   - platform: template
-    name: "ON"
+    name: "Light On"
+    id: ${device_name}_ceiling_fan_light_on
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 4
   - platform: template
-    name: "OFF"
+    name: "Light Off"
+    id: ${device_name}_ceiling_fan_light_off
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 1
+  # - platform: template
+    # name: "ON BLUE"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 6
   - platform: template
-    name: "ON BLUE"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 6
-  - platform: template
-    name: "FAN 1"
+    name: "Fan 1"
+    id: ${device_name}_ceiling_fan_1
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 10
   - platform: template
-    name: "FAN 2"
+    name: "Fan 2"
+    id: ${device_name}_ceiling_fan_2
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 7
+  # - platform: template
+    # name: "FAN 3"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 5
+  # - platform: template
+    # name: "FAN 4"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 9
+  # - platform: template
+    # name: "FAN 4"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 9
+  # - platform: template
+    # name: "FAN 5"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 12
+  # - platform: template
+    # name: "FAN 6"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 11
   - platform: template
-    name: "FAN 3"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 5
-  - platform: template
-    name: "FAN 4"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 9
-  - platform: template
-    name: "FAN 4"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 9
-  - platform: template
-    name: "FAN 5"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 12
-  - platform: template
-    name: "FAN 6"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 11
-  - platform: template
-    name: "FAN OFF"
+    name: "Fan Off"
+    id: ${device_name}_ceiling_fan_off
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 8
   - platform: template
-    name: "FAN 2 HOURS"
+    name: "Fan 2 Hours"
+    id: ${device_name}_ceiling_fan_2_hours
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 18
-  - platform: template
-    name: "FAN 30 MINUTES"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 13785
-          code: 16
+  # - platform: template
+    # name: "FAN 30 MINUTES"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 16
   # Bedroom 2
+  # - platform: template
+    # name: "ON 2"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 4
+  # - platform: template
+    # name: "OFF 2"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 1
   - platform: template
-    name: "ON 2"
+    name: "Living Room Light Toggle"  
+    id: ${device_name}_ceiling_fan_light_toggle
     on_press:
       - script.execute:
-          id: transmit_house_code
-          house: 63258
-          code: 4
-  - platform: template
-    name: "OFF 2"
-    on_press:
-      - script.execute:
-          id: transmit_house_code
-          house: 63258
-          code: 1
+          id: codes_to_binary
+          codes: '{32}d1eff8c7, {33}68f7fc638, {33}68f7fc638'
+          # 00101110000100000000011100111000, 100101110000100000000011100111000, 100101110000100000000011100111000

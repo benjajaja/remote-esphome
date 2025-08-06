@@ -1,5 +1,8 @@
+substitutions:
+  device_name: temperature
+
 esphome:
-  name: temperature-esphome
+  name: ${device_name}-esphome
 
 esp32:
   board: esp32doit-devkit-v1
@@ -23,11 +26,12 @@ mqtt:
   port: 1883
   discovery: true
   discovery_retain: true
+  discovery_unique_id_generator: mac
   birth_message:
-    topic: remote-esphome/status
+    topic: ${device_name}/status
     payload: online
   will_message:
-    topic: remote-esphome/status
+    topic: ${device_name}/status
     payload: offline
 
 light:
@@ -158,6 +162,10 @@ script:
                 
                 // Store in global vector
                 id(binary_codes).push_back(binary);
+
+                // Log for debugging
+                ESP_LOGD("transmit_codes", "Code: %s, Bits: %d, Parsed: 0x%llx, Binary: %s", 
+                         code_str.c_str(), bit_count, code, binary.c_str());
               }
             }
             
@@ -176,7 +184,8 @@ script:
 
 button:
   - platform: template
-    name: "RF433 Remote Button"  
+    name: "Living Room Light Toggle"  
+    id: ${device_name}_ceiling_fan_light_toggle
     on_press:
       - script.execute:
           id: codes_to_binary
