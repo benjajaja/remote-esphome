@@ -304,3 +304,32 @@ button:
           id: codes_to_binary
           codes: '{32}d1eff8c7, {33}68f7fc638, {33}68f7fc638'
           # 00101110000100000000011100111000, 100101110000100000000011100111000, 100101110000100000000011100111000
+  - platform: template
+    name: "HARD CODES"
+    id: ${device_name}_ceiling_fan_light_toggle_hard_codes
+    on_press:
+      # First: 32-bit code d1eff8c7
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '00101110000100000000011100111000'
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Second: 33-bit code 68f7fc638 (fine-tune to get 638 instead of 640)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Adjusted to get 638
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Third: 33-bit code 68f7fc638 (repeat)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Same as above
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+

@@ -98,6 +98,9 @@ remote_transmitter:
   carrier_duty_percent: 100%
 
 globals:
+  - id: binary_code
+    type: std::string
+    initial_value: '""'
   - id: binary_codes
     type: std::vector<std::string>
     restore_value: no
@@ -181,6 +184,39 @@ script:
                   sync: [1, 116]
                   zero: [4, 12]
                   one: [12, 4]
+  - id: transmit_house_code
+    parameters:
+      house: int
+      code: int
+    then:
+      - lambda: |-
+          // Use uint32_t to ensure we have enough bits
+          uint32_t combined = ((uint32_t)house << 8) | (uint32_t)code;
+          
+          // Convert to 24-bit binary string
+          std::string binary_str = "";
+          for (int i = 23; i >= 0; i--) {
+            if (combined & (1UL << i)) {
+              binary_str += "1";
+            } else {
+              binary_str += "0";
+            }
+          }
+          
+          ESP_LOGD("house_code", "House: %d, Code: %d -> Combined: %lu -> Binary: %s", 
+                   house, code, (unsigned long)combined, binary_str.c_str());
+          
+          id(binary_code) = binary_str;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda "return id(binary_code);"
+          protocol:
+            pulse_length: 400
+            sync: [1, 31]
+            zero: [1, 3]
+            one: [3, 1]
+          repeat:
+            times: 5
+            wait_time: 0s
 
 button:
   - platform: template
@@ -191,4 +227,32 @@ button:
           id: codes_to_binary
           codes: '{32}d1eff8c7, {33}68f7fc638, {33}68f7fc638'
           # 00101110000100000000011100111000, 100101110000100000000011100111000, 100101110000100000000011100111000
+  - platform: template
+    name: "HARD CODES"
+    id: ${device_name}_ceiling_fan_light_toggle_hard_codes
+    on_press:
+      # First: 32-bit code d1eff8c7
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '00101110000100000000011100111000'
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Second: 33-bit code 68f7fc638 (fine-tune to get 638 instead of 640)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Adjusted to get 638
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
+      # Third: 33-bit code 68f7fc638 (repeat)
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '100101110000100000000011100111000'  # Same as above
+          protocol:
+            pulse_length: 104
+            sync: [1, 116]
+            zero: [4, 12]
+            one: [12, 4]
 
