@@ -54,9 +54,9 @@ interval:
           condition:
             wifi.connected:
           then:
-            - light.turn_on: wifi_led
-          else:
             - light.turn_off: wifi_led
+          else:
+            - light.turn_on: wifi_led
  
 remote_transmitter:
   pin: GPIO13
@@ -185,7 +185,7 @@ globals:
 button:
   # Bedroom 1
   - platform: template
-    name: "Light On"
+    name: "Bedroom 1 Light On"
     id: ${device_name}_ceiling_fan_light_on
     on_press:
       - script.execute:
@@ -193,7 +193,7 @@ button:
           house: 13785
           code: 4
   - platform: template
-    name: "Light Off"
+    name: "Bedroom 1 Light Off"
     id: ${device_name}_ceiling_fan_light_off
     on_press:
       - script.execute:
@@ -208,7 +208,7 @@ button:
           # house: 13785
           # code: 6
   - platform: template
-    name: "Fan 1"
+    name: "Bedroom 1 Fan 1"
     id: ${device_name}_ceiling_fan_1
     on_press:
       - script.execute:
@@ -216,7 +216,7 @@ button:
           house: 13785
           code: 10
   - platform: template
-    name: "Fan 2"
+    name: "Bedroom 1 Fan 2"
     id: ${device_name}_ceiling_fan_2
     on_press:
       - script.execute:
@@ -259,7 +259,7 @@ button:
           # house: 13785
           # code: 11
   - platform: template
-    name: "Fan Off"
+    name: "Bedroom 1 Fan Off"
     id: ${device_name}_ceiling_fan_off
     on_press:
       - script.execute:
@@ -267,35 +267,27 @@ button:
           house: 13785
           code: 8
   - platform: template
-    name: "Fan 2 Hours"
+    name: "Bedroom 1 Fan 2 Hours"
     id: ${device_name}_ceiling_fan_2_hours
     on_press:
       - script.execute:
           id: transmit_house_code
           house: 13785
           code: 18
-  # - platform: template
-    # name: "FAN 30 MINUTES"
-    # on_press:
-      # - script.execute:
-          # id: transmit_house_code
-          # house: 13785
-          # code: 16
-  # Bedroom 2
-  # - platform: template
-    # name: "ON 2"
-    # on_press:
-      # - script.execute:
-          # id: transmit_house_code
-          # house: 63258
-          # code: 4
-  # - platform: template
-    # name: "OFF 2"
-    # on_press:
-      # - script.execute:
-          # id: transmit_house_code
-          # house: 63258
-          # code: 1
+  - platform: template
+    name: "Bedroom 2 Light On"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 63258
+          code: 4
+  - platform: template
+    name: "Bedroom 2 Light Off"
+    on_press:
+      - script.execute:
+          id: transmit_house_code
+          house: 63258
+          code: 1
   - platform: template
     name: "Living Room Light Toggle"  
     id: ${device_name}_ceiling_fan_light_toggle
@@ -303,33 +295,3 @@ button:
       - script.execute:
           id: codes_to_binary
           codes: '{32}d1eff8c7, {33}68f7fc638, {33}68f7fc638'
-          # 00101110000100000000011100111000, 100101110000100000000011100111000, 100101110000100000000011100111000
-  - platform: template
-    name: "HARD CODES"
-    id: ${device_name}_ceiling_fan_light_toggle_hard_codes
-    on_press:
-      # First: 32-bit code d1eff8c7
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '00101110000100000000011100111000'
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
-      # Second: 33-bit code 68f7fc638 (fine-tune to get 638 instead of 640)
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '100101110000100000000011100111000'  # Adjusted to get 638
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
-      # Third: 33-bit code 68f7fc638 (repeat)
-      - remote_transmitter.transmit_rc_switch_raw:
-          code: '100101110000100000000011100111000'  # Same as above
-          protocol:
-            pulse_length: 104
-            sync: [1, 116]
-            zero: [4, 12]
-            one: [12, 4]
-
