@@ -1,0 +1,65 @@
+substitutions:
+  device_name: zigbee
+
+esphome:
+  name: ${device_name}-esphome
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  domain: .lan
+
+light:
+  - platform: binary
+    name: "WiFi Status LED"
+    id: wifi_led
+    output: led_output
+    internal: true
+
+output:
+  - platform: gpio
+    pin: GPIO2  # Change this to your LED pin
+    id: led_output
+
+# WiFi connection status automation.
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - light.turn_off: wifi_led
+          else:
+            - light.turn_on: wifi_led
+ 
+##########################################
+
+external_components:
+  - source: github://oxan/esphome-stream-server
+
+# UART configuration for XBee on UART2
+uart:
+  id: xbee_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+  # data_bits: 8
+  # parity: NONE
+  # stop_bits: 1
+
+stream_server:
+   uart_id: xbee_uart
+   port: 8888
