@@ -16,6 +16,10 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+api:
+  encryption:
+    key: !secret api_encryption_key
+
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -292,9 +296,52 @@ button:
     name: "Living Room Light Toggle"  
     id: ${device_name}_ceiling_fan_light_toggle
     on_press:
-      - script.execute:
-          id: codes_to_binary
-          codes: '{32}d1eff8c7, {33}68f7fc6380, {33}68f7fc6380'
+      - light.turn_on: wifi_led
+      # - script.execute:
+          # id: codes_to_binary
+          # codes: '{32}d1eff8c7, {33}68f7fc6380, {33}68f7fc6380'
+      - light.turn_on: wifi_led
+      - logger.log:
+          format: "SENDING RAW CODES"
+          level: INFO
+      - remote_transmitter.transmit_rc_switch_raw:
+          # code: "00101110000100000000011100111000"
+          code: "11010001111011111111100011000111"
+          protocol:
+            pulse_length: 388
+            sync: [1, 30]
+            zero: [3, 1]
+            one: [1, 3]
+          repeat:
+            times: 2
+            wait_time: 0ms
+      # - delay: 1ms
+      - remote_transmitter.transmit_rc_switch_raw:
+          # code: "100101110000100000000011100111000"
+          code: "011010001111011111111100011000111"
+          protocol:
+            pulse_length: 388
+            sync: [1, 30]
+            zero: [3, 1]
+            one: [1, 3]
+          repeat:
+            times: 3
+            wait_time: 0ms
+      # - delay: 1ms
+      # - remote_transmitter.transmit_rc_switch_raw:
+          # code: "100101110000100000000011100111000"
+          # code: "011010001111011111111100011000111"
+          # protocol:
+            # pulse_length: 388
+            # sync: [1, 30]
+            # zero: [3, 1]
+            # one: [1, 3]
+      - light.turn_off: wifi_led
+      - delay: 500ms
+      - light.turn_on: wifi_led
+      - delay: 500ms
+      - light.turn_off: wifi_led
+# # # # #
 # Total count:   98,  width: 178.86 ms		(44714 S)
 # Pulse width distribution:
  # [ 0] count:   63,  width:  396 us [388;416]	(  99 S)
@@ -319,6 +366,12 @@ button:
 # Use a flex decoder with -X 'n=name,m=OOK_PWM,s=396,l=1200,r=12140,g=1240,t=322,y=0'
 # [pulse_slicer_pwm] Analyzer Device
 # codes     : {32}d1eff8c7, {33}68f7fc638, {33}68f7fc638
-# 00101110000100000000011100111000
+# binary:
+#  00101110000100000000011100111000
 # 100101110000100000000011100111000
 # 100101110000100000000011100111000
+# inverted:
+#  11010001111011111111100011000111
+# 011010001111011111111100011000111
+# 011010001111011111111100011000111
+
