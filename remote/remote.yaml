@@ -65,6 +65,8 @@ interval:
 remote_transmitter:
   pin: GPIO13
   carrier_duty_percent: 100%
+  id: remote_tx
+
 
 script:
   - id: transmit_house_code
@@ -178,6 +180,40 @@ script:
                   sync: [1, 116]
                   zero: [4, 12]
                   one: [12, 4]
+  # New script for Living Room Light Toggle using rc-switch directly
+  - id: transmit_living_room_toggle
+
+    then:
+      - lambda: |-
+          auto transmitter = id(remote_tx);
+          
+          // First transmission: 32-bit code "11010001111011111111100011000111"
+          // Convert binary string to uint64_t (MSB first)
+          uint64_t code1 = 0b11010001111011111111100011000111ULL;
+          
+          auto call1 = transmitter->transmit();
+          // Create custom protocol with your timing parameters
+          // pulse_length: 388, sync: [1, 30], zero: [3, 1], one: [1, 3]
+          // RCSwitchBase(sync_high, sync_low, zero_high, zero_low, one_high, one_low, inverted)
+          esphome::remote_base::RCSwitchBase custom_protocol(388, 388*30, 388*3, 388*1, 388*1, 388*3, false);
+          custom_protocol.transmit(call1.get_data(), code1, 32);
+          
+          // Second transmission: 33-bit code "011010001111011111111100011000111" (repeated twice)
+          // For 33-bit, we need to handle the leading zero properly
+          uint64_t code2 = 0b011010001111011111111100011000111ULL;
+          
+          auto call2 = transmitter->transmit();
+          custom_protocol.transmit(call2.get_data(), code2, 33);
+          
+          auto call3 = transmitter->transmit();
+          custom_protocol.transmit(call3.get_data(), code2, 33);
+
+          ESP_LOGI("living_room", "Transmitting first code: 0x%llX (32 bits)", code1);
+          ESP_LOGI("living_room", "Transmitting second codes: 0x%llX (33 bits, 2x)", code2);
+          call1.perform();
+          call2.perform();
+          call3.perform();
+
 globals:
   - id: binary_code
     type: std::string
@@ -304,43 +340,33 @@ button:
       - logger.log:
           format: "SENDING RAW CODES"
           level: INFO
-      - remote_transmitter.transmit_rc_switch_raw:
-          # code: "00101110000100000000011100111000"
-          code: "11010001111011111111100011000111"
-          protocol:
-            pulse_length: 388
-            sync: [1, 30]
-            zero: [3, 1]
-            one: [1, 3]
-          repeat:
-            times: 2
-            wait_time: 0ms
-      # - delay: 1ms
-      - remote_transmitter.transmit_rc_switch_raw:
-          # code: "100101110000100000000011100111000"
-          code: "011010001111011111111100011000111"
-          protocol:
-            pulse_length: 388
-            sync: [1, 30]
-            zero: [3, 1]
-            one: [1, 3]
-          repeat:
-            times: 3
-            wait_time: 0ms
-      # - delay: 1ms
+      - script.execute: transmit_living_room_toggle
       # - remote_transmitter.transmit_rc_switch_raw:
-          # code: "100101110000100000000011100111000"
+          # code: "11010001111011111111100011000111"
+          # protocol:
+            # pulse_length: 388
+            # sync: [1, 30]
+            # zero: [3, 1]
+            # one: [1, 3]
+          # repeat:
+            # times: 1
+            # wait_time: 0ms
+      # - remote_transmitter.transmit_rc_switch_raw:
           # code: "011010001111011111111100011000111"
           # protocol:
             # pulse_length: 388
             # sync: [1, 30]
             # zero: [3, 1]
             # one: [1, 3]
+          # repeat:
+            # times: 2
+            # wait_time: 0ms
       - light.turn_off: wifi_led
       - delay: 500ms
       - light.turn_on: wifi_led
       - delay: 500ms
       - light.turn_off: wifi_led
+
 # # # # #
 # Total count:   98,  width: 178.86 ms		(44714 S)
 # Pulse width distribution:
