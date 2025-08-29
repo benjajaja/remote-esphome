@@ -67,11 +67,6 @@ output:
     id: gpio_14_output
 
 
-
-
-
-
-
 light:
   - platform: binary
     id: yellow_led
@@ -240,7 +235,6 @@ script:
           }
 
 
-
 globals:
   - id: button_press_count
     type: int
@@ -288,14 +282,7 @@ binary_sensor:
           } else {
             id(button_press_count) = 0;
           }
-      
-          
-# interval:
-#   - interval: 10s
-#     then:
-#       - script.execute: check_moisture_once
 
-            
 
 # Deep sleep configuration
 deep_sleep:
@@ -313,12 +300,6 @@ external_components:
   - source: github://pr#7942
     components: [ "adc" ]
 
-  - source:
-      type: git
-      url: https://github.com/ackPeng/esphome.git
-      ref: api
-    components: [ api ]
-    refresh: 0s
 
 sensor:
   - platform: adc
@@ -349,26 +330,7 @@ sensor:
   - platform: wifi_signal
     name: "wifi singnal strength"
     update_interval: 10s
-    
-# text_sensor:
-#   - platform: template
-#     name: "Soil Moisture Status"   # ✅ Status displayed on the HA panel
-#     id: soil_status
-#     # internal: true
-#     lambda: |-
-#       float value = id(soil_sensor).state;
-#       float Diff = id(dry_value) - id(wet_value);
-#       if (value >= (id(dry_value) - Diff * id(ref_dry))) {
-#         //id(red_led_blink_3_times).execute();
-#         return {"Dry"};
-#       } else if (value > (id(dry_value) - Diff * id(ref_wet)) && value < (id(dry_value) - Diff * id(ref_dry))) {
-#         //id(yellow_led_blink_3_times).execute();
-#         return {"Almost Dry"};
-#       } else {
-#         //id(green_led_blink_3_times).execute();
-#         return {"Normal Moisture"};
-#       }
-#     update_interval: 5s
+
 
 text_sensor:
   - platform: template
@@ -384,7 +346,7 @@ text_sensor:
       } else {
         return {"Normal Moisture"};
       }
-    update_interval: never  # 不让自动触发上报，我们自己控制
+    update_interval: never  # Don't auto-trigger reporting, we control it ourselves
 
 interval:
   - interval: 5s
@@ -415,12 +377,10 @@ logger:
 
 improv_serial:
 
-# Enable Home Assistant API
+# Enable Home Assistant API with standard component
 api:
   encryption:
     key: !secret api_encryption_key
-
-
 
 ota:
   - platform: esphome
@@ -444,7 +404,6 @@ wifi:
           else:
             - logger.log: "The device has been networked"
 
-
   on_disconnect:
     then:
       - globals.set:
@@ -456,4 +415,3 @@ wifi:
     password: ""
 
 captive_portal:
-    

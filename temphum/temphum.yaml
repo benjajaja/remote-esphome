@@ -1,0 +1,68 @@
+substitutions:
+  device_name: temp-hum
+
+external_components:
+  - source: github://luar123/zigbee_esphome
+    components: [zigbee]
+
+esphome:
+  name: ${device_name}-esphome
+
+esp32:
+  board: esp32-c6-devkitc-1
+  # board: esp32-h2-devkitm-1
+  partitions: partitions_zb.csv
+  framework:
+    type: esp-idf
+
+logger:
+  # hardware_uart: UART0
+  hardware_uart: USB_SERIAL_JTAG
+
+sensor:
+  - platform: aht10
+    variant: AHT20
+    temperature:
+      name: "Temperature"
+      id: "temperature"
+      filters:
+        - delta: 0.1
+    humidity:
+      name: "Humidity"
+      id: "humidity"
+      filters:
+        - delta: 0.5
+    update_interval: 60s
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  # scan: true
+
+zigbee:
+  id: "zb"
+  router: true
+  endpoints:
+    - device_type: TEMPERATURE_SENSOR
+      num: 1
+      clusters:
+        - id: TEMP_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: temperature
+              scale: 100
+        - id: REL_HUMIDITY_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: humidity
+              scale: 100
+  on_join:
+    then:
+      - logger.log: "Joined network"
+

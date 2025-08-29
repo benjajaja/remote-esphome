@@ -1,0 +1,153 @@
+substitutions:
+  device_name: particles
+
+external_components:
+  - source: github://luar123/zigbee_esphome
+  # - source: ../../zigbee_esphome/components/
+    components: [zigbee]
+
+esphome:
+  name: ${device_name}-esphome
+
+esp32:
+  board: esp32-c6-devkitc-1
+  # board: esp32-h2-devkitm-1
+  partitions: partitions_zb.csv
+  framework:
+    type: esp-idf
+
+logger:
+  # hardware_uart: UART0
+  hardware_uart: USB_SERIAL_JTAG
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+    id: "internal_temp"
+    filters:
+      - delta: 0.1
+    update_interval: 60s
+  - platform: hm3301
+    pm_1_0:
+      name: "PM1.0"
+      id: pm1
+    pm_2_5:
+      name: "PM2.5"
+      id: pm25
+    pm_10_0:
+      name: "PM10.0"
+      id: pm10
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return x <= 5.0;'
+              then:
+                - light.turn_off:
+                    id: light_1
+              else:
+                - light.turn_on:
+                    id: light_1
+    aqi:
+      name: "AQI"
+      calculation_type: "CAQI"
+      id: aqi
+    update_interval: 60s
+  - platform: aht10
+    variant: AHT20
+    temperature:
+      name: "Temperature"
+      id: "temperature"
+      filters:
+        - delta: 0.1
+    humidity:
+      name: "Humidity"
+      id: "humidity"
+      filters:
+        - delta: 0.5
+    update_interval: 60s
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  # scan: true
+
+# light:
+  # - platform: esp32_rmt_led_strip
+    # rgb_order: GRB
+    # pin: 8
+    # num_leds: 1
+    # rmt_channel: 0
+    # chipset: ws2812
+    # id: light_1
+
+light:
+  - platform: status_led
+    id: light_1
+    name: "XIAO Status LED"
+    pin:
+      number: GPIO15
+      inverted: true
+
+
+globals:
+  - id: color_x
+    type: float
+    restore_value: no
+    initial_value: '0'
+  - id: color_y
+    type: float
+    restore_value: no
+    initial_value: '0'
+
+zigbee:
+  id: "zb"
+  router: true
+  endpoints:
+    - num: 1
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: PM2_5_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: single
+              report: true
+              value: 0
+              device: pm10
+            - attribute_id: 0x2 # maximum value is needed!
+              type: single
+              value: 999
+    - device_type: TEMPERATURE_SENSOR
+      num: 2
+      clusters:
+        - id: TEMP_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: temperature
+              scale: 100
+        - id: REL_HUMIDITY_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: humidity
+              scale: 100
+    - device_type: TEMPERATURE_SENSOR
+      num: 3
+      clusters:
+        - id: TEMP_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: internal_temp
+              scale: 100
+  on_join:
+    then:
+      - logger.log: "Joined network"
+

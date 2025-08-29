@@ -1,0 +1,336 @@
+substitutions:
+  device_name: zbremote
+
+external_components:
+  - source: github://luar123/zigbee_esphome
+    components: [zigbee]
+
+esphome:
+  name: ${device_name}-esphome
+
+esp32:
+  board: esp32-c6-devkitc-1
+  partitions: partitions_zb.csv
+  framework:
+    type: esp-idf
+
+logger:
+  # hardware_uart: UART0
+  hardware_uart: USB_SERIAL_JTAG
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+    id: "temp"
+    filters:
+      - delta: 0.1
+
+light:
+  - platform: status_led
+    id: light_1
+    name: "XIAO Status LED"
+    pin:
+      number: GPIO15
+      inverted: true
+
+zigbee:
+  id: "zb"
+  router: true
+  endpoints:
+    - num: 1
+      device_type: ON_OFF_OUTPUT
+      clusters:
+        - id: ON_OFF
+          attributes:
+            - attribute_id: 0x0
+              type: bool
+              report: false
+              on_value:
+                then:
+                  - light.toggle: light_1
+        - id: LEVEL_CONTROL
+          attributes:
+            - attribute_id: 0
+              type: U8
+              report: false
+              scale: 1000
+              on_value:
+                then:
+                  - script.execute:
+                      id: transmit_house_code
+                      house: 13785
+                      code: !lambda "return x;"
+    - device_type: TEMPERATURE_SENSOR
+      num: 2
+      clusters:
+        - id: TEMP_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: S16
+              report: true
+              value: 100
+              device: temp
+              scale: 100
+    - num: 3
+      device_type: THERMOSTAT
+      clusters:
+        - id: THERMOSTAT
+          attributes:
+            - attribute_id: 0x0012 # heating setpoint
+              type: U8
+              report: false
+              on_value:
+                then:
+                  - logger.log:
+                      format: "Received button code: %d"
+                      args: [!lambda "x"]
+                  - script.execute:
+                      id: transmit_house_code
+                      house: 13785
+                      code: !lambda "return x;"
+        # - id: FAN_CONTROL
+          # attributes:
+            # - attribute_id: 0x0000
+              # id: fan_mode_attr
+              # type: 8BIT_ENUM
+              # report: true
+              # on_value:
+                # then:
+                  # logger.log:
+                    # format: "Received state %d"
+                    # args: [!lambda "x"]
+    # - num: 4
+      # device_type: SIMPLE_SENSOR
+      # clusters:
+        # - id: ANALOG_INPUT
+          # attributes:
+            # - attribute_id: 0x0055
+              # type: SINGLE
+              # report: true
+              # value: 100
+            # - attribute_id: 0x006F
+              # type: 8BITMAP
+              # value: 0
+    # - num: 5
+      # device_type: SIMPLE_SENSOR  # This supports analog input cluster
+      # clusters:
+        # - id: ANALOG_INPUT
+          # attributes:
+            # - attribute_id: 0x0055  # Present Value
+              # type: U16  # or FLOAT
+              # report: false
+              # on_value:
+                # then:
+                  # - script.execute:
+                      # id: transmit_house_code
+                      # house: 13785
+                      # code: !lambda "return x;"
+    # - num: 6
+      # device_type: CUSTOM_ATTR  # Allows custom cluster configurations
+      # clusters:
+        # - id: ANALOG_INPUT
+          # attributes:
+            # - attribute_id: 0x0055
+              # type: U8
+              # report: false
+              # on_value:
+                # then:
+                  # - script.execute:
+                      # id: transmit_house_code
+                      # house: 13785
+                      # code: !lambda "return x;"
+  on_join:
+    then:
+      - logger.log: "Joined network"
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 9
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    id: button_1
+    on_press:
+      then:
+        - zigbee.report: zb
+    on_click:
+      min_length: 5s
+      max_length: 20s
+      then:
+        - zigbee.reset: zb
+
+remote_transmitter:
+  pin: GPIO19
+  carrier_duty_percent: 50%
+  id: remote_tx
+
+globals:
+  - id: binary_code
+    type: std::string
+    initial_value: '""'
+
+script:
+  - id: transmit_house_code
+    parameters:
+      house: int
+      code: int
+    then:
+      - lambda: |-
+          // Use uint32_t to ensure we have enough bits
+          uint32_t combined = ((uint32_t)house << 8) | (uint32_t)code;
+          
+          // Convert to 24-bit binary string
+          std::string binary_str = "";
+          for (int i = 23; i >= 0; i--) {
+            if (combined & (1UL << i)) {
+              binary_str += "1";
+            } else {
+              binary_str += "0";
+            }
+          }
+          
+          ESP_LOGD("house_code", "House: %d, Code: %d -> Combined: %lu -> Binary: %s", 
+                   house, code, (unsigned long)combined, binary_str.c_str());
+          
+          id(binary_code) = binary_str;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda "return id(binary_code);"
+          protocol:
+            pulse_length: 400
+            sync: [1, 31]
+            zero: [1, 3]
+            one: [3, 1]
+          repeat:
+            times: 5
+            wait_time: 0s
+
+
+# button:
+  # - platform: template
+    # name: "Bedroom 1 Light On"
+    # id: ${device_name}_ceiling_fan_light_on
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 4
+  # - platform: template
+    # name: "Bedroom 1 Light Off"
+    # id: ${device_name}_ceiling_fan_light_off
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 1
+  # - platform: template
+    # name: "Bedroom 1 Fan 1"
+    # id: ${device_name}_ceiling_fan_1
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 10
+  # - platform: template
+    # name: "Bedroom 1 Fan 2"
+    # id: ${device_name}_ceiling_fan_2
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 7
+  # - platform: template
+    # name: "FAN 3"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 5
+  # - platform: template
+    # name: "FAN 4"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 9
+  # - platform: template
+    # name: "FAN 4"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 9
+  # - platform: template
+    # name: "FAN 5"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 12
+  # - platform: template
+    # name: "FAN 6"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 11
+  # - platform: template
+    # name: "Bedroom 1 Fan Off"
+    # id: ${device_name}_ceiling_fan_off
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 8
+  # - platform: template
+    # name: "Bedroom 1 Fan 2 Hours"
+    # id: ${device_name}_ceiling_fan_2_hours
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 13785
+          # code: 18
+  # - platform: template
+    # name: "Bedroom 2 Light On"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 4
+  # - platform: template
+    # name: "Bedroom 2 Light Off"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 1
+  # - platform: template
+    # name: "Bedroom 2 Fan Off"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 8
+  # - platform: template
+    # name: "Bedroom 2 Fan 1"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 10
+  # - platform: template
+    # name: "Bedroom 2 Fan 2"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 7
+  # - platform: template
+    # name: "Bedroom 2 Fan 3"
+    # on_press:
+      # - script.execute:
+          # id: transmit_house_code
+          # house: 63258
+          # code: 5
+
