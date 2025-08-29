@@ -15,7 +15,6 @@ esp32:
     type: esp-idf
 
 logger:
-  # hardware_uart: UART0
   hardware_uart: USB_SERIAL_JTAG
 
 sensor:
@@ -35,131 +34,54 @@ light:
 
 zigbee:
   id: "zb"
-  router: true
   endpoints:
     - num: 1
       device_type: ON_OFF_OUTPUT
       clusters:
         - id: ON_OFF
           attributes:
-            - attribute_id: 0x0
+            - attribute_id: 0x0000
               type: bool
               report: false
               on_value:
                 then:
-                  - light.toggle: light_1
-        - id: LEVEL_CONTROL
-          attributes:
-            - attribute_id: 0
-              type: U8
-              report: false
-              scale: 1000
-              on_value:
-                then:
+                  - light.turn_on: light_1
                   - script.execute:
                       id: transmit_house_code
                       house: 13785
-                      code: !lambda "return x;"
-    - device_type: TEMPERATURE_SENSOR
-      num: 2
-      clusters:
-        - id: TEMP_MEASUREMENT
-          attributes:
-            - attribute_id: 0x0
-              type: S16
-              report: true
-              value: 100
-              device: temp
-              scale: 100
-    - num: 3
-      device_type: THERMOSTAT
-      clusters:
-        - id: THERMOSTAT
-          attributes:
-            - attribute_id: 0x0012 # heating setpoint
-              type: U8
-              report: false
-              on_value:
-                then:
-                  - logger.log:
-                      format: "Received button code: %d"
-                      args: [!lambda "x"]
-                  - script.execute:
-                      id: transmit_house_code
-                      house: 13785
-                      code: !lambda "return x;"
-        # - id: FAN_CONTROL
+                      code: !lambda "return x ? 1 : 4;"
+                  - delay: 100ms
+                  - light.turn_off: light_1
+                  - delay: 100ms
+                  - light.turn_on: light_1
+                  - delay: 500ms
+                  - light.turn_off: light_1
+
+    # - num: 2
+      # device_type: ON_OFF_SWITCH
+      # clusters:
+        # - id: ON_OFF
           # attributes:
             # - attribute_id: 0x0000
-              # id: fan_mode_attr
-              # type: 8BIT_ENUM
-              # report: true
-              # on_value:
-                # then:
-                  # logger.log:
-                    # format: "Received state %d"
-                    # args: [!lambda "x"]
-    # - num: 4
-      # device_type: SIMPLE_SENSOR
-      # clusters:
-        # - id: ANALOG_INPUT
-          # attributes:
-            # - attribute_id: 0x0055
-              # type: SINGLE
-              # report: true
-              # value: 100
-            # - attribute_id: 0x006F
-              # type: 8BITMAP
-              # value: 0
-    # - num: 5
-      # device_type: SIMPLE_SENSOR  # This supports analog input cluster
-      # clusters:
-        # - id: ANALOG_INPUT
-          # attributes:
-            # - attribute_id: 0x0055  # Present Value
-              # type: U16  # or FLOAT
+              # type: bool
               # report: false
               # on_value:
                 # then:
+                  # - light.turn_on: light_1
                   # - script.execute:
                       # id: transmit_house_code
-                      # house: 13785
-                      # code: !lambda "return x;"
-    # - num: 6
-      # device_type: CUSTOM_ATTR  # Allows custom cluster configurations
-      # clusters:
-        # - id: ANALOG_INPUT
-          # attributes:
-            # - attribute_id: 0x0055
-              # type: U8
-              # report: false
-              # on_value:
-                # then:
-                  # - script.execute:
-                      # id: transmit_house_code
-                      # house: 13785
-                      # code: !lambda "return x;"
+                      # house: 63258
+                      # code: !lambda "return x ? 1 : 4;"
+                  # - delay: 100ms
+                  # - light.turn_off: light_1
+                  # - delay: 100ms
+                  # - light.turn_on: light_1
+                  # - delay: 500ms
+                  # - light.turn_off: light_1
+
   on_join:
     then:
       - logger.log: "Joined network"
-
-binary_sensor:
-  - platform: gpio
-    pin:
-      number: 9
-      mode:
-        input: true
-        pullup: true
-      inverted: true
-    id: button_1
-    on_press:
-      then:
-        - zigbee.report: zb
-    on_click:
-      min_length: 5s
-      max_length: 20s
-      then:
-        - zigbee.reset: zb
 
 remote_transmitter:
   pin: GPIO19
