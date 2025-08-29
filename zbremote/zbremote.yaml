@@ -7,6 +7,26 @@ external_components:
 
 esphome:
   name: ${device_name}-esphome
+  on_boot:
+    priority: -10
+    then:
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on: light_1
+            - delay: 200ms
+            - light.turn_off: light_1
+            - delay: 200ms
+      - repeat:
+          count: 2
+          then:
+            - light.turn_on: light_1
+            - delay: 300ms
+            - light.turn_off: light_1
+            - delay: 300ms
+      - light.turn_on: light_1
+      - delay: 1000ms
+      - light.turn_off: light_1
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -34,6 +54,7 @@ light:
 
 zigbee:
   id: "zb"
+  router: true
   endpoints:
     - num: 1
       device_type: ON_OFF_OUTPUT
@@ -42,46 +63,84 @@ zigbee:
           attributes:
             - attribute_id: 0x0000
               type: bool
-              report: false
               on_value:
                 then:
                   - light.turn_on: light_1
                   - script.execute:
                       id: transmit_house_code
                       house: 13785
-                      code: !lambda "return x ? 1 : 4;"
+                      code: !lambda "return x ? 4 : 1;"
                   - delay: 100ms
                   - light.turn_off: light_1
-                  - delay: 100ms
-                  - light.turn_on: light_1
-                  - delay: 500ms
-                  - light.turn_off: light_1
+                  - repeat:
+                      count: 4
+                      then:
+                        - light.turn_on: light_1
+                        - delay: 100ms
+                        - light.turn_off: light_1
+                        - delay: 100ms
 
-    # - num: 2
-      # device_type: ON_OFF_SWITCH
-      # clusters:
-        # - id: ON_OFF
-          # attributes:
-            # - attribute_id: 0x0000
-              # type: bool
-              # report: false
-              # on_value:
-                # then:
-                  # - light.turn_on: light_1
-                  # - script.execute:
-                      # id: transmit_house_code
-                      # house: 63258
-                      # code: !lambda "return x ? 1 : 4;"
-                  # - delay: 100ms
-                  # - light.turn_off: light_1
-                  # - delay: 100ms
-                  # - light.turn_on: light_1
-                  # - delay: 500ms
-                  # - light.turn_off: light_1
+    - num: 2
+      device_type: ON_OFF_OUTPUT
+      clusters:
+        - id: ON_OFF
+          attributes:
+            - attribute_id: 0x0000
+              type: bool
+              on_value:
+                then:
+                  - light.turn_on: light_1
+                  - script.execute:
+                      id: transmit_house_code
+                      house: 63258
+                      code: !lambda "return x ? 4 : 1;"
+                  - delay: 100ms
+                  - light.turn_off: light_1
+                  - repeat:
+                      count: 4
+                      then:
+                        - light.turn_on: light_1
+                        - delay: 100ms
+                        - light.turn_off: light_1
+                        - delay: 100ms
+
+    - num: 3
+      device_type: ON_OFF_OUTPUT
+      clusters:
+        - id: ON_OFF
+          attributes:
+            - attribute_id: 0x0000
+              type: bool
+              on_value:
+                then:
+                  - light.turn_on: light_1
+                  - script.execute:
+                      id: transmit_house_code
+                      house: 63258
+                      code: !lambda "return x ? 10 : 8;"
+                  - delay: 100ms
+                  - light.turn_off: light_1
+                  - repeat:
+                      count: 4
+                      then:
+                        - light.turn_on: light_1
+                        - delay: 100ms
+                        - light.turn_off: light_1
+                        - delay: 100ms
 
   on_join:
     then:
       - logger.log: "Joined network"
+      - repeat:
+          count: 10
+          then:
+            - light.turn_on: light_1
+            - delay: 100ms
+            - light.turn_off: light_1
+            - delay: 100ms
+      - light.turn_on: light_1
+      - delay: 1s
+      - light.turn_off: light_1
 
 remote_transmitter:
   pin: GPIO19
