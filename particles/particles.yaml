@@ -37,17 +37,17 @@ sensor:
     pm_10_0:
       name: "PM10.0"
       id: pm10
-      on_value:
-        then:
-          - if:
-              condition:
-                lambda: 'return x <= 5.0;'
-              then:
-                - light.turn_off:
-                    id: light_1
-              else:
-                - light.turn_on:
-                    id: light_1
+      # on_value:
+        # then:
+          # - if:
+              # condition:
+                # lambda: 'return x <= 5.0;'
+              # then:
+                # - light.turn_off:
+                    # id: light_1
+              # else:
+                # - light.turn_on:
+                    # id: light_1
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
@@ -72,15 +72,6 @@ i2c:
   scl: GPIO23
   # scan: true
 
-# light:
-  # - platform: esp32_rmt_led_strip
-    # rgb_order: GRB
-    # pin: 8
-    # num_leds: 1
-    # rmt_channel: 0
-    # chipset: ws2812
-    # id: light_1
-
 light:
   - platform: status_led
     id: light_1
@@ -104,21 +95,8 @@ zigbee:
   id: "zb"
   router: true
   endpoints:
-    - num: 1
-      device_type: SIMPLE_SENSOR
-      clusters:
-        - id: PM2_5_MEASUREMENT
-          attributes:
-            - attribute_id: 0x0
-              type: single
-              report: true
-              value: 0
-              device: pm10
-            - attribute_id: 0x2 # maximum value is needed!
-              type: single
-              value: 999
     - device_type: TEMPERATURE_SENSOR
-      num: 2
+      num: 1
       clusters:
         - id: TEMP_MEASUREMENT
           attributes:
@@ -137,7 +115,7 @@ zigbee:
               device: humidity
               scale: 100
     - device_type: TEMPERATURE_SENSOR
-      num: 3
+      num: 2
       clusters:
         - id: TEMP_MEASUREMENT
           attributes:
@@ -147,7 +125,119 @@ zigbee:
               value: 100
               device: internal_temp
               scale: 100
+    - num: 3
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: PM2_5_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0
+              type: single
+              report: true
+              value: 0
+              device: pm25
+            - attribute_id: 0x2 # maximum value is needed!
+              type: single
+              value: 999
+    - num: 4
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: ANALOG_INPUT
+          attributes:
+            - attribute_id: 0x001C
+              type: CHAR_STRING
+              max_length: 3    #  This needs to match character count of value below
+              report: true
+              value: PM1
+            - attribute_id: 0x0051
+              type: bool
+              value: false
+            - attribute_id: 0x0055
+              type: single
+              report: true
+              value: 0
+              device: pm1    #  Sensor ID defined earlier in your ESPHome config
+            - attribute_id: 0x0075
+              type: 16BIT_ENUM
+              value: 219     # μg/m³ (most common for PM measurements)
+              report: true
+            - attribute_id: 0x006F
+              type: 8BITMAP
+              value: 0
+    - num: 5
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: ANALOG_INPUT
+          attributes:
+            - attribute_id: 0x001C
+              type: CHAR_STRING
+              max_length: 4    #  This needs to match character count of value below
+              report: true
+              value: PM10
+            - attribute_id: 0x0051
+              type: bool
+              value: false
+            - attribute_id: 0x0055
+              type: single
+              report: true
+              value: 0
+              device: pm10    #  Sensor ID defined earlier in your ESPHome config
+            - attribute_id: 0x0075
+              type: 16BIT_ENUM
+              value: 219     # μg/m³ (most common for PM measurements)
+              report: true
+            - attribute_id: 0x006F
+              type: 8BITMAP
+              value: 0
+
+    - num: 6
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: ANALOG_INPUT
+          attributes:
+            - attribute_id: 0x001C
+              type: CHAR_STRING
+              max_length: 5    #  This needs to match character count of value below
+              report: true
+              value: PM2.5
+            - attribute_id: 0x0051
+              type: bool
+              value: false
+            - attribute_id: 0x0055
+              type: single
+              report: true
+              value: 0
+              device: aqi
+            - attribute_id: 0x006F
+              type: 8BITMAP
+              value: 0
+
   on_join:
     then:
       - logger.log: "Joined network"
+      - light.turn_on: light_1
 
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO9  # Boot button on ESP32-C6-DevKitC-1
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "Boot Button"
+    id: boot_button
+    on_click:
+      min_length: 1s
+      max_length: 20s
+      then:
+        - logger.log: "Boot button long press - resetting Zigbee to rejoin"
+        - light.turn_on: light_1
+        - delay: 100ms
+        - light.turn_off: light_1
+        - delay: 100ms
+        - light.turn_on: light_1
+        - delay: 100ms
+        - light.turn_off: light_1
+        - zigbee.reset:
+            id: zb
