@@ -59,6 +59,7 @@ zigbee:
     - num: 1
       device_type: ON_OFF_OUTPUT
       clusters:
+        - id: GROUPS
         - id: ON_OFF
           attributes:
             - attribute_id: 0x0000
@@ -83,6 +84,7 @@ zigbee:
     - num: 2
       device_type: ON_OFF_OUTPUT
       clusters:
+        - id: GROUPS
         - id: ON_OFF
           attributes:
             - attribute_id: 0x0000
@@ -107,6 +109,7 @@ zigbee:
     - num: 3
       device_type: ON_OFF_OUTPUT
       clusters:
+        - id: GROUPS
         - id: ON_OFF
           attributes:
             - attribute_id: 0x0000
@@ -315,3 +318,27 @@ script:
           # house: 63258
           # code: 5
 
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO9  # Boot button on ESP32-C6-DevKitC-1
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "Boot Button"
+    id: boot_button
+    on_click:
+      min_length: 3s
+      max_length: 20s
+      then:
+        - logger.log: "Boot button long press - resetting Zigbee to rejoin"
+        - light.turn_on: light_1
+        - delay: 100ms
+        - light.turn_off: light_1
+        - delay: 100ms
+        - light.turn_on: light_1
+        - delay: 100ms
+        - light.turn_off: light_1
+        - zigbee.reset:
+            id: zb
