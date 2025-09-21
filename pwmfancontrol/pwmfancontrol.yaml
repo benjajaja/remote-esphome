@@ -12,14 +12,23 @@ esphome:
 
 esp32:
   board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   power_save_mode: none
   output_power: 15dB
+  fast_connect: true  # Skip network scan, connect directly
+  reboot_timeout: 0s  # Don't reboot on connection failure
+  domain: .lan  # Use .lan instead of .local for mDNS
+
+captive_portal:
 
 api:
+  port: 6053
+  reboot_timeout: 0s
   encryption:
     key: !secret api_encryption_key
 
@@ -29,6 +38,12 @@ ota:
 
 logger:
   level: DEBUG
+
+# Status LED - OFF when connected, ON when not connected
+status_led:
+  pin:
+    number: GPIO2  # Built-in LED
+    inverted: true  # Inverted: LED OFF when connected, ON when disconnected
 
 # Global variables for persistence
 globals:
@@ -66,7 +81,7 @@ sensor:
     id: temperature_sensor
     unit_of_measurement: "°C"
     accuracy_decimals: 1
-    update_interval: 1s
+    update_interval: 5s
     filters:
       - filter_out: 85.0  # Filter out bogus 85°C readings
       - filter_out: -127.0  # Filter out disconnected sensor readings
@@ -87,7 +102,7 @@ sensor:
     name: "RPM"
     id: fan_rpm
     unit_of_measurement: "rpm"
-    update_interval: 1s
+    update_interval: 5s
     filters:
       - multiply: 30  # 2 pulses per revolution, 60s/min / 2 = 30
       - lambda: |-
@@ -138,6 +153,7 @@ number:
     optimistic: true
     restore_value: false
     initial_value: 0
+    accuracy_decimals: 0
     on_value:
       then:
         - if:
