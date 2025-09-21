@@ -1,0 +1,290 @@
+esphome:
+  name: pwmfancontrol
+  platform: ESP32
+  board: esp32doit-devkit-v1
+  on_boot:
+    priority: -100
+    then:
+      - globals.set:
+          id: threshold_value
+          value: !lambda 'return id(threshold_number).state;'
+      - globals.set:
+          id: max_temp_value
+          value: !lambda 'return id(max_temp_number).state;'
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  output_power: 15dB
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+  level: DEBUG
+
+# Global variables for persistence
+globals:
+  - id: threshold_value
+    type: float
+    restore_value: true
+    initial_value: '32.0'
+  - id: max_temp_value
+    type: float
+    restore_value: true
+    initial_value: '40.0'
+  - id: pwm_mode_override
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: override_pwm_value
+    type: float
+    restore_value: false
+    initial_value: '0'
+  - id: fan_relay_enabled
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# Dallas temperature sensor
+dallas:
+  - pin: GPIO5
+    update_interval: 1s
+
+sensor:
+  # Temperature sensor
+  - platform: dallas
+    index: 0
+    name: "Temperature"
+    id: temperature_sensor
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - filter_out: 85.0  # Filter out bogus 85°C readings
+      - filter_out: -127.0  # Filter out disconnected sensor readings
+      - lambda: |-
+          if (x > 60.0 || x < 0.0) {
+            return {};  // Ignore invalid readings
+          }
+          return x;
+    on_value:
+      then:
+        - script.execute: update_fan_control
+
+  # Fan RPM sensor using pulse counter
+  - platform: pulse_counter
+    pin:
+      number: GPIO13
+      mode: INPUT_PULLUP
+    name: "RPM"
+    id: fan_rpm
+    unit_of_measurement: "rpm"
+    update_interval: 1s
+    filters:
+      - multiply: 30  # 2 pulses per revolution, 60s/min / 2 = 30
+      - lambda: |-
+          if (x > 5000) return 5000;  // Max RPM limit
+          if (x < 0) return 0;
+          return x;
+
+binary_sensor:
+  # PWM connected status (relay enabled)
+  - platform: template
+    name: "PWM Connected"
+    id: pwm_connected
+    lambda: |-
+      return id(fan_relay_enabled);
+
+# Relay switch for fan power
+switch:
+  - platform: gpio
+    name: "Fan Relay"
+    id: fan_relay
+    pin: GPIO14
+    restore_mode: RESTORE_DEFAULT_OFF
+
+# PWM output for fan control
+output:
+  - platform: ledc
+    pin: GPIO12
+    frequency: 25000Hz
+    id: fan_pwm_output
+
+# Fan component using PWM output
+fan:
+  - platform: speed
+    output: fan_pwm_output
+    name: "Fan Control"
+    id: fan_control
+    restore_mode: RESTORE_DEFAULT_OFF
+
+# Number inputs for control
+number:
+  - platform: template
+    name: "PWM"
+    id: pwm_number
+    min_value: 0
+    max_value: 100
+    step: 1
+    unit_of_measurement: "%"
+    optimistic: true
+    restore_value: false
+    initial_value: 0
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(pwm_mode_override);'
+            then:
+              - lambda: |-
+                  id(override_pwm_value) = x;
+                  float pwm_decimal = x / 100.0;
+                  id(fan_control).turn_on();
+                  id(fan_control).speed = pwm_decimal * 255.0 / 255.0;  # Normalize to 0-1 range
+
+  - platform: template
+    name: "Threshold"
+    id: threshold_number
+    min_value: 20
+    max_value: 50
+    step: 0.1
+    unit_of_measurement: "°C"
+    optimistic: true
+    restore_value: true
+    initial_value: 32.0
+    on_value:
+      then:
+        - globals.set:
+            id: threshold_value
+            value: !lambda 'return x;'
+        - script.execute: update_fan_control
+
+  - platform: template
+    name: "Max Temp"
+    id: max_temp_number
+    min_value: 30
+    max_value: 80
+    step: 1
+    unit_of_measurement: "°C"
+    optimistic: true
+    restore_value: true
+    initial_value: 40.0
+    on_value:
+      then:
+        - globals.set:
+            id: max_temp_value
+            value: !lambda 'return x;'
+        - script.execute: update_fan_control
+
+# Select for PWM mode
+select:
+  - platform: template
+    name: "PWM Mode"
+    id: pwm_mode_select
+    options:
+      - "auto"
+      - "override"
+    optimistic: true
+    restore_value: false
+    initial_option: "auto"
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return x == "override";'
+            then:
+              - lambda: |-
+                  id(pwm_mode_override) = true;
+                  // Apply current PWM setting
+                  float current_pwm = id(pwm_number).state;
+                  id(override_pwm_value) = current_pwm;
+                  float pwm_decimal = current_pwm / 100.0;
+                  if (pwm_decimal > 0) {
+                    id(fan_control).turn_on();
+                    id(fan_control).speed = pwm_decimal;
+                  } else {
+                    id(fan_control).turn_off();
+                  }
+            else:
+              - lambda: |-
+                  id(pwm_mode_override) = false;
+              - script.execute: update_fan_control
+
+# Script for fan control logic
+script:
+  - id: update_fan_control
+    then:
+      - lambda: |-
+          if (id(pwm_mode_override)) {
+            // In override mode, don't change anything
+            return;
+          }
+
+          float temp = id(temperature_sensor).state;
+          if (isnan(temp)) {
+            return;
+          }
+
+          float threshold = id(threshold_value);
+          float max_temp = id(max_temp_value);
+          float hysteresis = 2.0;
+
+          // Fan on/off logic with hysteresis
+          bool should_enable = false;
+          if (id(fan_relay_enabled)) {
+            // Fan is currently on
+            if (temp <= threshold - hysteresis) {
+              should_enable = false;
+            } else {
+              should_enable = true;
+            }
+          } else {
+            // Fan is currently off
+            if (temp >= threshold) {
+              should_enable = true;
+            } else {
+              should_enable = false;
+            }
+          }
+
+          id(fan_relay_enabled) = should_enable;
+          id(pwm_connected).publish_state(should_enable);
+
+          // Control relay
+          if (should_enable) {
+            id(fan_relay).turn_on();
+          } else {
+            id(fan_relay).turn_off();
+          }
+
+          if (should_enable) {
+            // Calculate PWM based on temperature
+            float fan_temp_min = 20.0;
+            float min_fan_speed = 32.0 / 255.0;  // Convert to 0-1 range
+            float max_fan_speed = 1.0;
+
+            // Constrain and map temperature to PWM
+            float constrained_temp = temp;
+            if (constrained_temp < fan_temp_min) constrained_temp = fan_temp_min;
+            if (constrained_temp > max_temp) constrained_temp = max_temp;
+
+            float pwm_value = min_fan_speed + (max_fan_speed - min_fan_speed) *
+                              ((constrained_temp - fan_temp_min) / (max_temp - fan_temp_min));
+
+            // Update fan speed
+            id(fan_control).turn_on();
+            id(fan_control).speed = pwm_value;
+
+            // Update PWM number display (in percentage)
+            id(pwm_number).publish_state(pwm_value * 100.0);
+          } else {
+            // Turn off fan
+            id(fan_control).turn_off();
+            id(pwm_number).publish_state(0);
+          }
