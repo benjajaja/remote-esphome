@@ -1,7 +1,5 @@
 esphome:
   name: pwmfancontrol
-  platform: ESP32
-  board: esp32doit-devkit-v1
   on_boot:
     priority: -100
     then:
@@ -11,6 +9,9 @@ esphome:
       - globals.set:
           id: max_temp_value
           value: !lambda 'return id(max_temp_number).state;'
+
+esp32:
+  board: esp32doit-devkit-v1
 
 wifi:
   ssid: !secret wifi_ssid
@@ -52,19 +53,20 @@ globals:
     restore_value: false
     initial_value: 'false'
 
-# Dallas temperature sensor
-dallas:
-  - pin: GPIO5
-    update_interval: 1s
+# One-wire bus for Dallas temperature sensor
+one_wire:
+  - platform: gpio
+    pin: GPIO5
 
 sensor:
   # Temperature sensor
-  - platform: dallas
-    index: 0
+  - platform: dallas_temp
+    address: 0x0000000000000000  # Will auto-detect, or specify address
     name: "Temperature"
     id: temperature_sensor
     unit_of_measurement: "°C"
     accuracy_decimals: 1
+    update_interval: 1s
     filters:
       - filter_out: 85.0  # Filter out bogus 85°C readings
       - filter_out: -127.0  # Filter out disconnected sensor readings
@@ -146,7 +148,7 @@ number:
                   id(override_pwm_value) = x;
                   float pwm_decimal = x / 100.0;
                   id(fan_control).turn_on();
-                  id(fan_control).speed = pwm_decimal * 255.0 / 255.0;  # Normalize to 0-1 range
+                  id(fan_control).speed = pwm_decimal * 255.0 / 255.0;  
 
   - platform: template
     name: "Threshold"
