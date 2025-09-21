@@ -3,7 +3,6 @@ substitutions:
 
 external_components:
   - source: github://luar123/zigbee_esphome
-  # - source: ../../zigbee_esphome/components/
     components: [zigbee]
 
 esphome:
@@ -11,7 +10,6 @@ esphome:
 
 esp32:
   board: esp32-c6-devkitc-1
-  # board: esp32-h2-devkitm-1
   partitions: partitions_zb.csv
   framework:
     type: esp-idf
@@ -26,7 +24,7 @@ sensor:
     id: "internal_temp"
     filters:
       - delta: 0.1
-    update_interval: 60s
+    update_interval: 5min
   - platform: hm3301
     pm_1_0:
       name: "PM1.0"
@@ -37,22 +35,22 @@ sensor:
     pm_10_0:
       name: "PM10.0"
       id: pm10
-      # on_value:
-        # then:
-          # - if:
-              # condition:
-                # lambda: 'return x <= 5.0;'
-              # then:
-                # - light.turn_off:
-                    # id: light_1
-              # else:
-                # - light.turn_on:
-                    # id: light_1
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return x <= 10.0;'
+              then:
+                - light.turn_off:
+                    id: light_1
+              else:
+                - light.turn_on:
+                    id: light_1
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
       id: aqi
-    update_interval: 60s
+    update_interval: 5min
   - platform: aht10
     variant: AHT20
     temperature:
@@ -60,17 +58,17 @@ sensor:
       id: "temperature"
       filters:
         - delta: 0.1
+    update_interval: 5min
     humidity:
       name: "Humidity"
       id: "humidity"
       filters:
         - delta: 0.5
-    update_interval: 60s
+    update_interval: 15min
 
 i2c:
   sda: GPIO22
   scl: GPIO23
-  # scan: true
 
 light:
   - platform: status_led
