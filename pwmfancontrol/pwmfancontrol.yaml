@@ -94,18 +94,23 @@ sensor:
       then:
         - script.execute: update_fan_control
 
-  # Fan RPM sensor using pulse counter
-  - platform: pulse_counter
+  # Fan RPM sensor using pulse meter (better for ESP-IDF)
+  - platform: pulse_meter
     pin:
       number: GPIO13
-      mode: INPUT_PULLUP
+      mode:
+        input: true
+        pullup: true
     name: "RPM"
     id: fan_rpm
     unit_of_measurement: "rpm"
-    update_interval: 5s
+    internal_filter: 13us  # Debounce noise
+    timeout: 3s  # If no pulses for 3s, report 0 RPM
     filters:
       - multiply: 30  # 2 pulses per revolution, 60s/min / 2 = 30
       - lambda: |-
+          // Only report RPM if fan is actually running
+          if (!id(fan_relay_enabled)) return 0;
           if (x > 5000) return 5000;  // Max RPM limit
           if (x < 0) return 0;
           return x;
@@ -153,7 +158,6 @@ number:
     optimistic: true
     restore_value: false
     initial_value: 0
-    accuracy_decimals: 0
     on_value:
       then:
         - if:
@@ -171,7 +175,7 @@ number:
     id: threshold_number
     min_value: 20
     max_value: 50
-    step: 0.1
+    step: 1
     unit_of_measurement: "°C"
     optimistic: true
     restore_value: true
@@ -300,7 +304,7 @@ script:
             id(fan_control).speed = pwm_value;
 
             // Update PWM number display (in percentage)
-            id(pwm_number).publish_state(pwm_value * 100.0);
+            id(pwm_number).publish_state(round(pwm_value * 100.0));
           } else {
             // Turn off fan
             id(fan_control).turn_off();
