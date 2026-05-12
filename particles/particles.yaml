@@ -2,7 +2,7 @@ substitutions:
   device_name: particles
 
 external_components:
-  - source: github://luar123/zigbee_esphome@92ffd6829869c72f30fb4aecd9a7359fafc1b9dc
+  - source: github://luar123/zigbee_esphome@fea21fdc569d9654e08a18dc6a903d6873cb45ba
     components: [zigbee]
 
 esphome:
@@ -49,7 +49,7 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
-      id: aqi
+      id: particles_aqi
     update_interval: 5min
   - platform: aht10
     variant: AHT20
@@ -170,7 +170,7 @@ zigbee:
             - attribute_id: 0x001C
               type: CHAR_STRING
               max_length: 3    #  This needs to match character count of value below
-              report: true
+              # report: true
               value: PM1
             - attribute_id: 0x0051
               type: bool
@@ -183,7 +183,7 @@ zigbee:
             - attribute_id: 0x0075
               type: 16BIT_ENUM
               value: 219     # μg/m³ (most common for PM measurements)
-              report: true
+              # report: true
             - attribute_id: 0x006F
               type: 8BITMAP
               value: 0
@@ -195,7 +195,7 @@ zigbee:
             - attribute_id: 0x001C
               type: CHAR_STRING
               max_length: 4    #  This needs to match character count of value below
-              report: true
+              # report: true
               value: PM10
             - attribute_id: 0x0051
               type: bool
@@ -208,7 +208,7 @@ zigbee:
             - attribute_id: 0x0075
               type: 16BIT_ENUM
               value: 219     # μg/m³ (most common for PM measurements)
-              report: true
+              # report: true
             - attribute_id: 0x006F
               type: 8BITMAP
               value: 0
@@ -220,7 +220,7 @@ zigbee:
             - attribute_id: 0x001C
               type: CHAR_STRING
               max_length: 5    #  This needs to match character count of value below
-              report: true
+              # report: true
               value: PM2.5
             - attribute_id: 0x0051
               type: bool
@@ -229,7 +229,7 @@ zigbee:
               type: single
               report: true
               value: 0
-              device: aqi
+              device: particles_aqi
             - attribute_id: 0x006F
               type: 8BITMAP
               value: 0

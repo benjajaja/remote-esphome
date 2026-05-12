@@ -8,7 +8,7 @@
   outputs = { nixpkgs, ... }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
-      python = pkgs.python313;
+      python = pkgs.python312;
       pythonPackages = python.pkgs;
     in
     {
