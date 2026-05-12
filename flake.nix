@@ -18,6 +18,9 @@
           python
           pythonPackages.digi-xbee
           pythonPackages.xmodem
+          esphome
+          esptool
+          platformio
           socat
           minicom
           screen

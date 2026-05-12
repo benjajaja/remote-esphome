@@ -2,7 +2,7 @@ substitutions:
   device_name: particles
 
 external_components:
-  - source: github://luar123/zigbee_esphome
+  - source: github://luar123/zigbee_esphome@92ffd6829869c72f30fb4aecd9a7359fafc1b9dc
     components: [zigbee]
 
 esphome:
@@ -53,22 +53,42 @@ sensor:
     update_interval: 5min
   - platform: aht10
     variant: AHT20
+    update_interval: 5min
     temperature:
       name: "Temperature"
       id: "temperature"
       filters:
         - delta: 0.1
-    update_interval: 5min
     humidity:
       name: "Humidity"
       id: "humidity"
       filters:
         - delta: 0.5
-    update_interval: 15min
+  - platform: mhz19
+    id: mhz16
+    co2:
+      name: CO2
+      id: co2_sensor
+      # on_value:
+        # then:
+          # - zigbee.setAttr:
+              # id: zb_co2
+              # value: !lambda "return x;"
+              # value: !lambda "return (uint16_t) x;"
+    temperature:
+      name: CO2 Temperature
+      internal: true
+    update_interval: 60s
+    automatic_baseline_calibration: false
 
 i2c:
   sda: GPIO22
   scl: GPIO23
+
+uart:
+  rx_pin: GPIO17   # connect to MH-Z16 TX
+  tx_pin: GPIO16   # connect to MH-Z16 RX
+  baud_rate: 9600
 
 light:
   - platform: status_led
@@ -77,7 +97,13 @@ light:
     pin:
       number: GPIO15
       inverted: true
-
+  # - platform: spi_led_strip
+    # id: grove_led
+    # name: "Grove RGB LED"
+    # data_pin: GPIO21
+    # clock_pin: GPIO22
+    # num_leds: 1
+    # chipset: P9813
 
 globals:
   - id: color_x
@@ -186,7 +212,6 @@ zigbee:
             - attribute_id: 0x006F
               type: 8BITMAP
               value: 0
-
     - num: 6
       device_type: SIMPLE_SENSOR
       clusters:
@@ -208,7 +233,23 @@ zigbee:
             - attribute_id: 0x006F
               type: 8BITMAP
               value: 0
-
+    - num: 7
+      device_type: SIMPLE_SENSOR
+      clusters:
+        - id: CARBON_DIOXIDE_MEASUREMENT
+          attributes:
+            - attribute_id: 0x0000  # MeasuredValue
+              type: S16
+              report: true
+              value: 0
+              device: co2_sensor
+              # id: zb_co2
+            # - attribute_id: 0x0001  # MinMeasuredValue
+              # type: single
+              # value: 0.0
+            # - attribute_id: 0x0002  # MaxMeasuredValue
+              # type: single
+              # value: 1.0             # CO2 cluster uses fraction 0.0-1.0 (ZCL spec)
   on_join:
     then:
       - logger.log: "Joined network"
