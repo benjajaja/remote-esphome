@@ -71,12 +71,6 @@ sensor:
       id: co2_sensor
     update_interval: 60s
     automatic_baseline_calibration: false
-  - platform: copy
-    name: "CO2 Copy"
-    source_id: co2_sensor
-    id: co2_zb
-    filters:
-      - multiply: 0.000001
 
 i2c:
   sda: GPIO22
@@ -134,7 +128,8 @@ zigbee:
               id: zb_co2
               type: SINGLE
               report: true
-              device: co2_zb
+              device: co2_sensor
+              scale: 0.000001
             - attribute_id: 0x0001
               type: SINGLE
               value: 0.0
