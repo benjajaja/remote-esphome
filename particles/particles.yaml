@@ -35,17 +35,6 @@ sensor:
     pm_10_0:
       name: "PM10.0"
       id: pm10
-      on_value:
-        then:
-          - if:
-              condition:
-                lambda: 'return x <= 10.0;'
-              then:
-                - light.turn_off:
-                    id: light_1
-              else:
-                - light.turn_on:
-                    id: light_1
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
@@ -69,7 +58,44 @@ sensor:
     co2:
       name: CO2
       id: co2_sensor
-    update_interval: 60s
+      on_value:
+        then:
+          - lambda: |-
+              float ppm = x;
+
+              float r = 0.0;
+              float g = 0.0;
+              float b = 0.0;
+
+              float brightness = 0.0;
+
+              if (ppm < 500) {
+                id(rgb_led).turn_off().set_transition_length(2000).perform();
+                return;
+              }
+
+              if (ppm < 1000) {
+                float t = (ppm - 500.0) / 500.0;
+                r = t;
+                g = 1.0;
+                brightness = 0.0 + 0.3 * t;   // 0.0 → 0.3
+              } else if (ppm < 1500) {
+                float t = (ppm - 1000.0) / 500.0;
+                r = 1.0;
+                g = 1.0 - t;
+                brightness = 0.3 + 0.7 * t;   // 0.7 → 1.0
+              } else {
+                r = 1.0;
+                g = 0.0;
+                brightness = 1.0;
+              }
+
+              auto call = id(rgb_led).turn_on();
+              call.set_transition_length(500);
+              call.set_rgb(r, g, b);
+              call.set_brightness(brightness);
+              call.perform();
+    update_interval: 300s
     automatic_baseline_calibration: false
 
 i2c:
@@ -81,6 +107,10 @@ uart:
   tx_pin: GPIO16   # connect to MH-Z16 RX
   baud_rate: 9600
 
+spi:
+  clk_pin: GPIO19
+  mosi_pin: GPIO18
+
 light:
   - platform: status_led
     id: light_1
@@ -88,6 +118,10 @@ light:
     pin:
       number: GPIO15
       inverted: true
+  - platform: spi_led_strip
+    name: "RGB LED"
+    id: rgb_led
+    num_leds: 1
 
 globals:
   - id: color_x
@@ -256,3 +290,4 @@ binary_sensor:
         - light.turn_off: light_1
         - zigbee.reset:
             id: zb
+
